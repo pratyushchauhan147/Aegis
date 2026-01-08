@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Aegis | Evidence Gallery</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet" />
+  
+  <style>
+    body { background-color: #111827; color: white; }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: #1f2937; }
+    ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+  </style>
+</head>
+<body class="h-screen flex flex-col md:flex-row overflow-hidden">
+
+  <div class="w-full md:w-80 bg-gray-900 border-r border-gray-800 flex flex-col z-20 shadow-xl">
+    
+    <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-gray-900">
+      <div>
+        <h2 class="font-bold text-lg text-blue-500"><i class="fas fa-shield-alt mr-2"></i>Evidence</h2>
+      </div>
+      <a href="index.html" class="text-xs bg-gray-800 px-3 py-1 rounded hover:bg-gray-700 transition text-gray-300">
+        <i class="fas fa-arrow-left mr-1"></i> Dashboard
+      </a>
+    </div>
+
+    <div class="p-2 border-b border-gray-800">
+      <button onclick="fetchList()" class="w-full bg-gray-800 hover:bg-gray-700 text-xs py-2 rounded text-gray-300 transition">
+        <i class="fas fa-sync-alt mr-1"></i> Refresh List
+      </button>
+    </div>
+
+    <div id="list" class="flex-1 overflow-y-auto p-2 space-y-2">
+      <div class="text-center text-gray-600 text-sm mt-10">Loading incidents...</div>
+    </div>
+    
+    <div class="p-3 bg-gray-950 border-t border-gray-800 text-xs text-gray-500 text-center">
+      Secure Session Active
+    </div>
+  </div>
+
+  <div class="flex-1 flex flex-col relative bg-black">
+    
+    <div class="flex-1 flex items-center justify-center relative bg-black">
+      <video id="video" controls autoplay class="w-full h-full object-contain"></video>
+
+      <div id="placeholder" class="absolute inset-0 flex flex-col items-center justify-center text-gray-700 pointer-events-none">
+        <i class="fas fa-play-circle text-6xl mb-4 opacity-20"></i>
+        <p class="text-lg font-medium opacity-50">Select an incident to review evidence</p>
+      </div>
+    </div>
+
+    <div id="metaBar" class="hidden absolute top-0 left-0 w-full p-4 bg-gradient-to-b from-black/80 to-transparent flex justify-between items-start pointer-events-none">
+      <div>
+        <h1 class="text-white font-bold text-lg drop-shadow-md">Playback</h1>
+        <p id="currentInfo" class="text-blue-400 font-mono text-xs">ID: —</p>
+      </div>
+      <div class="bg-gray-800/80 text-gray-300 px-3 py-1 rounded-full text-xs border border-gray-600 backdrop-blur-sm">
+        <i class="fas fa-eye mr-1"></i> Witnesses: <span id="witnessCount">-</span>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:3001';
+    const video = document.getElementById('video');
+    const listEl = document.getElementById('list');
+    const infoEl = document.getElementById('currentInfo');
+    const placeholder = document.getElementById('placeholder');
+    const metaBar = document.getElementById('metaBar');
+    const witnessCountEl = document.getElementById('witnessCount');
+    
+    let hls = null;
+
+    // --- 1. FETCH INCIDENT LIST ---
+    async function fetchList() {
+      try {
+        // 🔴 CRITICAL: 'credentials: include' sends the Login Cookie
+        const res = await fetch(`${API_BASE}/incident/list`, { 
+          credentials: 'include' 
+        });
+        
+        // If not logged in, go back to login page
+        if (res.status === 401) {
+          alert("Session expired. Please login.");
+          window.location.href = 'index.html';
+          return;
+        }
+
+        const data = await res.json();
+        renderList(data.incidents || []);
+      
+      } catch (e) {
+        listEl.innerHTML = '<div class="text-red-500 text-center text-sm mt-4">Failed to load.</div>';
+        console.error(e);
+      }
+    }
+
+    // --- 2. RENDER THE SIDEBAR ---
+    function renderList(incidents) {
+      listEl.innerHTML = '';
+      
+      if (incidents.length === 0) {
+        listEl.innerHTML = '<div class="text-gray-600 text-center text-sm mt-10">No recordings found.</div>';
+        return;
+      }
+
+      incidents.forEach(inc => {
+        const div = document.createElement('div');
+        const date = new Date(inc.created_at);
+        const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        // Badge Logic
+        let badgeClass = 'bg-gray-700 text-gray-300'; // Default (Ended)
+        if (inc.status === 'ACTIVE') badgeClass = 'bg-red-600 text-white animate-pulse';
+        if (inc.status === 'PENDING_DELETION') badgeClass = 'bg-yellow-600 text-white';
+
+        div.className = "p-3 rounded bg-gray-800 hover:bg-gray-700 cursor-pointer transition border border-gray-700 group";
+        div.innerHTML = `
+          <div class="flex justify-between items-start mb-1">
+            <span class="font-bold text-sm text-gray-200">${timeStr}</span>
+            <span class="text-[10px] px-2 py-0.5 rounded uppercase font-bold tracking-wide ${badgeClass}">${inc.status}</span>
+          </div>
+          <div class="text-[10px] font-mono text-gray-500 truncate group-hover:text-gray-400">ID: ${inc.id}</div>
+        `;
+
+        div.onclick = () => loadVideo(inc.id, div);
+        listEl.appendChild(div);
+      });
+    }
+
+    // --- 3. LOAD VIDEO ---
+    function loadVideo(id, element) {
+      // Highlight sidebar
+      document.querySelectorAll('#list > div').forEach(el => {
+        el.classList.remove('border-blue-500', 'bg-gray-600');
+        el.classList.add('border-gray-700', 'bg-gray-800');
+      });
+      element.classList.remove('border-gray-700', 'bg-gray-800');
+      element.classList.add('border-blue-500', 'bg-gray-600');
+
+      // Update UI
+      placeholder.classList.add('hidden');
+      metaBar.classList.remove('hidden');
+      infoEl.innerText = `ID: ${id}`;
+      
+      // Update Witness Count
+      fetchWitnessCount(id);
+
+      // Setup HLS Stream
+      const streamUrl = `${API_BASE}/playback/${id}/index.m3u8`;
+
+      if (Hls.isSupported()) {
+        if (hls) hls.destroy();
+        hls = new Hls();
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
+        video.play();
+      }
+    }
+
+    // --- 4. GET WITNESS COUNT ---
+    async function fetchWitnessCount(id) {
+      try {
+        const res = await fetch(`${API_BASE}/witness/${id}/count`);
+        const data = await res.json();
+        witnessCountEl.innerText = data.count || 0;
+      } catch (e) {
+        witnessCountEl.innerText = '-';
+      }
+    }
+
+    // Start
+    fetchList();
+  </script>
+</body>
+</html>

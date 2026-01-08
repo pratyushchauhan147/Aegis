@@ -1,0 +1,284 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Aegis – Universal Recorder</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; max-width: 600px; margin: 0 auto; background: #f0f0f0; }
+    h1 { color: #333; margin-bottom: 10px; }
+    
+    /* Control Panel Styles */
+    .controls { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .row { margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; }
+    label { font-weight: bold; margin-right: 10px; color: #555; }
+    
+    select { padding: 8px; border-radius: 4px; border: 1px solid #ccc; flex-grow: 1; font-size: 14px; }
+    
+    .btn-group { display: flex; gap: 10px; margin-top: 15px; }
+    button { flex: 1; padding: 12px; font-size: 15px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; color: white; transition: opacity 0.2s; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    #startIncident { background: #0070f3; }
+    #startRecording { background: #e00; }
+    #stopRecording { background: #333; }
+
+    /* Video & Status */
+    .status-bar { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 10px; color: #666; }
+    video { width: 100%; background: #000; border-radius: 8px; border: 2px solid #333; aspect-ratio: 4/3; }
+    
+    .log { font-family: monospace; font-size: 11px; color: #555; margin-top: 15px; height: 120px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fff; border-radius: 4px; }
+  </style>
+</head>
+<body>
+
+  <h1>🛡️ Aegis Recorder</h1>
+
+  <div class="controls">
+    <div class="row">
+      <label for="cameraSelect">Camera:</label>
+      <select id="cameraSelect">
+        <option value="virtual">🔵 Virtual Camera (Simulation)</option>
+        <option disabled>Scanning for devices...</option>
+      </select>
+    </div>
+
+    <div class="status-bar">
+      <span>ID: <strong id="incidentId" style="color:#0070f3">—</strong></span>
+      <span>Status: <strong id="status">Idle</strong></span>
+    </div>
+
+    <div class="btn-group">
+      <button id="startIncident">1. New Incident</button>
+      <button id="startRecording" disabled>2. Record</button>
+      <button id="stopRecording" disabled>3. Stop</button>
+    </div>
+  </div>
+
+  <video id="preview" autoplay muted playsinline></video>
+  
+  <div class="log" id="logPanel"></div>
+
+  <script>
+    // --- CONFIG ---
+    const API_BASE = 'http://localhost:3000';
+    const CHUNK_DURATION_MS = 2000; 
+    const CHUNK_DURATION_SEC = 2.0;
+
+    // --- STATE ---
+    let incidentId = null;
+    let mediaStream = null;
+    let sequenceNo = 0; 
+    let isRecording = false;
+
+    // --- DOM ---
+    const cameraSelect = document.getElementById('cameraSelect');
+    const startIncidentBtn = document.getElementById('startIncident');
+    const startRecordingBtn = document.getElementById('startRecording');
+    const stopRecordingBtn = document.getElementById('stopRecording');
+    const preview = document.getElementById('preview');
+    const statusEl = document.getElementById('status');
+    const logPanel = document.getElementById('logPanel');
+
+    function log(msg) {
+      const d = new Date().toLocaleTimeString();
+      logPanel.innerHTML = `<div>[${d}] ${msg}</div>` + logPanel.innerHTML;
+    }
+
+    // --- 0. INIT: Scan Cameras ---
+    async function initDevices() {
+      try {
+        // Request permission first to see labels
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        
+        // Clear options, keep Virtual as first
+        cameraSelect.innerHTML = '<option value="virtual">🔵 Virtual Camera (Simulation)</option>';
+        
+        devices.forEach(dev => {
+          if (dev.kind === 'videoinput') {
+            const opt = document.createElement('option');
+            opt.value = dev.deviceId;
+            opt.innerText = dev.label || `Camera ${cameraSelect.length}`;
+            cameraSelect.appendChild(opt);
+          }
+        });
+        log('Devices scanned successfully.');
+      } catch (e) {
+        log('Camera permission denied. Defaulting to Virtual.');
+      }
+    }
+    initDevices();
+
+    // --- 1. START INCIDENT ---
+    startIncidentBtn.onclick = async () => {
+      startIncidentBtn.disabled = true;
+      try {
+        const res = await fetch(`${API_BASE}/incident/start`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          incidentId = data.incident_id;
+          document.getElementById('incidentId').innerText = incidentId;
+          statusEl.innerText = 'ACTIVE';
+          statusEl.style.color = 'green';
+          startRecordingBtn.disabled = false;
+          log(`Incident started: ${incidentId}`);
+        }
+      } catch (e) {
+        log('Error starting incident');
+        startIncidentBtn.disabled = false;
+      }
+    };
+
+    // --- 2. START RECORDING ---
+    startRecordingBtn.onclick = async () => {
+      if (!incidentId) return;
+      const selectedDeviceId = cameraSelect.value;
+      
+      statusEl.innerText = 'Initializing...';
+
+      try {
+        // A. VIRTUAL MODE
+        if (selectedDeviceId === 'virtual') {
+          log('Starting Virtual Stream...');
+          mediaStream = createVirtualStream();
+        } 
+        // B. PHYSICAL CAMERA MODE
+        else {
+          log('Starting Physical Camera...');
+          mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: { exact: selectedDeviceId } },
+            audio: true // Attempt to get mic
+          });
+        }
+
+        preview.srcObject = mediaStream;
+        startRecordingBtn.disabled = true;
+        stopRecordingBtn.disabled = false;
+        statusEl.innerText = 'RECORDING';
+        statusEl.style.color = 'red';
+        
+        isRecording = true;
+        startLoopingRecorder();
+
+      } catch (err) {
+        console.error(err);
+        statusEl.innerText = 'Device Error';
+        log(`Error: ${err.message}`);
+        alert("Could not start device. Check permissions or try Virtual.");
+      }
+    };
+
+    // --- HELPER: Create Virtual Canvas Stream ---
+    function createVirtualStream() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 640; canvas.height = 480;
+      const ctx = canvas.getContext('2d');
+      
+      setInterval(() => {
+        ctx.fillStyle = '#f4f4f4'; ctx.fillRect(0,0,640,480);
+        
+        ctx.fillStyle = '#333';
+        ctx.font = '30px monospace';
+        ctx.fillText('AEGIS LIVE', 50, 60);
+        ctx.fillText(new Date().toLocaleTimeString(), 50, 110);
+        
+        if (isRecording) {
+          ctx.fillStyle = (Date.now() % 1000 < 500) ? 'red' : '#500';
+          ctx.beginPath(); ctx.arc(580, 50, 20, 0, 6.28); ctx.fill();
+        }
+        
+        // Moving Element
+        const x = (Date.now() / 5) % 640;
+        ctx.fillStyle = '#0070f3'; ctx.fillRect(x, 400, 40, 40);
+      }, 33); // ~30fps
+
+      const stream = canvas.captureStream(30);
+      // Add fake audio track
+      const actx = new AudioContext();
+      const dest = actx.createMediaStreamDestination();
+      const osc = actx.createOscillator();
+      osc.connect(dest); 
+      // osc.start(); // Keep silent to avoid annoyance, but track exists
+      stream.addTrack(dest.stream.getAudioTracks()[0]);
+      
+      return stream;
+    }
+
+    // --- CORE: Looping Recorder (Fixes Headers) ---
+   function startLoopingRecorder() {
+      const runLoop = async () => {
+        if (!isRecording) return;
+
+        const recorder = new MediaRecorder(mediaStream, { 
+          mimeType: 'video/webm; codecs=vp8' 
+        });
+        const chunks = [];
+        
+        recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+        
+        recorder.onstop = async () => {
+          if (chunks.length === 0) return;
+          
+          const blob = new Blob(chunks, { type: 'video/webm' });
+          
+          // 🛑 NEW CHECK: Don't upload empty blobs
+          if (blob.size > 0) {
+            uploadChunk(blob);
+          } else {
+            log('⚠️ Skipped empty frame');
+          }
+        };
+
+        recorder.start();
+        await new Promise(r => setTimeout(r, CHUNK_DURATION_MS));
+        if (recorder.state !== 'inactive') recorder.stop();
+        
+        if (isRecording) runLoop();
+      };
+      runLoop();
+    }
+
+    // --- UPLOAD LOGIC ---
+    async function uploadChunk(blob) {
+      const currentSeq = sequenceNo++;
+      const fd = new FormData();
+      fd.append('incident_id', incidentId);
+      fd.append('sequence_no', currentSeq.toString());
+      fd.append('duration', CHUNK_DURATION_SEC.toString());
+      fd.append('file', blob, `chunk_${currentSeq}.webm`);
+
+      log(`⬆️ Uploading Seq ${currentSeq}...`);
+      
+      try {
+        const res = await fetch(`${API_BASE}/ingest/chunk`, { method: 'POST', body: fd });
+        if (res.ok) log(`✅ Seq ${currentSeq} Saved`);
+        else log(`❌ Error: ${res.statusText}`);
+      } catch (e) { log(`❌ Network Error`); }
+    }
+
+    // --- 3. STOP RECORDING ---
+    stopRecordingBtn.onclick = async () => {
+      isRecording = false;
+      log('Stopping...');
+      
+      if (incidentId) {
+        try {
+          await fetch(`${API_BASE}/incident/stop`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ incident_id: incidentId })
+          });
+          statusEl.innerText = 'ENDED';
+          statusEl.style.color = '#333';
+          log(`Incident ${incidentId} Closed.`);
+        } catch(e) { log('Failed to close incident'); }
+      }
+      
+      stopRecordingBtn.disabled = true;
+      startIncidentBtn.disabled = false;
+      startRecordingBtn.disabled = true;
+    };
+  </script>
+</body>
+</html>

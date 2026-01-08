@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Aegis Playback Gallery</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    body { background: #111; color: white; font-family: sans-serif; margin: 0; display: flex; height: 100vh; }
+    
+    /* Sidebar for Incident List */
+    .sidebar { width: 300px; background: #222; border-right: 1px solid #444; overflow-y: auto; padding: 20px; }
+    .sidebar h3 { margin-top: 0; color: #ccc; }
+    .incident-item { padding: 15px; border-bottom: 1px solid #333; cursor: pointer; transition: background 0.2s; }
+    .incident-item:hover { background: #333; }
+    .incident-item.active { background: #0070f3; color: white; }
+    .badge { font-size: 10px; padding: 3px 6px; border-radius: 4px; text-transform: uppercase; float: right; }
+    .badge-active { background: #e00; color: white; }
+    .badge-ended { background: #555; color: #ddd; }
+
+    /* Main Video Area */
+    .main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+    video { width: 80%; max-width: 900px; border: 1px solid #333; box-shadow: 0 0 30px rgba(0,0,0,0.5); }
+    .video-info { margin-top: 20px; text-align: center; color: #888; }
+  </style>
+</head>
+<body>
+
+  <div class="sidebar">
+    <h3>📂 Evidence Locker</h3>
+    <div id="list">Loading...</div>
+    <button onclick="fetchList()" style="width:100%; margin-top:20px; padding:10px; background:#333; color:white; border:none; cursor:pointer;">Refresh List</button>
+  </div>
+
+  <div class="main">
+    <video id="video" controls autoplay></video>
+    <div class="video-info" id="currentInfo">Select a video to play</div>
+  </div>
+
+  <script>
+    const API_BASE = 'http://localhost:3000';
+    const video = document.getElementById('video');
+    const listEl = document.getElementById('list');
+    const infoEl = document.getElementById('currentInfo');
+    let hls = null;
+
+    // 1. Fetch List of Incidents
+    async function fetchList() {
+      try {
+        const res = await fetch(`${API_BASE}/incident/list`);
+        const data = await res.json();
+        
+        listEl.innerHTML = '';
+        data.incidents.forEach(inc => {
+          const div = document.createElement('div');
+          div.className = 'incident-item';
+          const time = new Date(inc.created_at).toLocaleTimeString();
+          div.innerHTML = `
+            <strong>${time}</strong>
+            <span class="badge ${inc.status === 'ACTIVE' ? 'badge-active' : 'badge-ended'}">${inc.status}</span>
+            <div style="font-size:11px; margin-top:5px; opacity:0.7">${inc.id}</div>
+          `;
+          div.onclick = () => loadVideo(inc.id, div);
+          listEl.appendChild(div);
+        });
+      } catch (e) {
+        listEl.innerText = 'Error fetching list';
+      }
+    }
+
+    // 2. Load Selected Video
+    function loadVideo(id, element) {
+      // Highlight sidebar item
+      document.querySelectorAll('.incident-item').forEach(el => el.classList.remove('active'));
+      element.classList.add('active');
+      infoEl.innerText = `Playing Evidence: ${id}`;
+
+      const streamUrl = `${API_BASE}/playback/${id}/index.m3u8`;
+
+      if (Hls.isSupported()) {
+        if (hls) hls.destroy(); // Cleanup previous stream
+        hls = new Hls();
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = streamUrl;
+        video.play();
+      }
+    }
+
+    // Initial Load
+    fetchList();
+  </script>
+</body>
+</html>
