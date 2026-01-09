@@ -25,9 +25,9 @@ fastify.register(cors, {
   credentials: true // <--- 2. IMPORTANT: Allow cookies to be sent
 });
 
-fastify.register(authMiddleware);
-fastify.register(cookie);
 
+fastify.register(cookie);
+fastify.register(authMiddleware);
 // Limit upload size to 6MB (Safety Buffer for 4MB chunks) [cite: 40]
 fastify.register(multipart, {
   limits: { fileSize: 6 * 1024 * 1024 } 

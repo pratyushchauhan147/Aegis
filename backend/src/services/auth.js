@@ -9,7 +9,7 @@ export default async function authRoutes(fastify, options) {
       path: '/',
       httpOnly: true,  // Security: JS cannot read this cookie
       secure: true,   // Set to TRUE in production (HTTPS only)
-      sameSite: 'lax', // CSRF protection
+      sameSite: 'none', // CSRF protection
       maxAge: 60 * 60 * 24 * 7 // 1 Week
     });
   };
