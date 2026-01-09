@@ -238,6 +238,36 @@ export default async function incidentRoutes(fastify, options) {
     fastify.log.error(err);
     return reply.code(500).send({ error: 'Failed to fetch map data' });
   }
+
+  
 });
+fastify.get('/:id/live-path', { preValidation: [fastify.authenticate] }, async (req, reply) => {
+  const { id } = req.params;
+  const { since } = req.query; // Client sends the timestamp of the last point they have
+
+  try {
+    let sql = `
+      SELECT latitude, longitude, speed, recorded_at 
+      FROM incident_locations 
+      WHERE incident_id = $1
+    `;
+    const params = [id];
+
+    // If client has data, only fetch NEW points
+    if (since) {
+      sql += ` AND recorded_at > $2`;
+      params.push(since);
+    }
+
+    sql += ` ORDER BY recorded_at ASC`;
+
+    const { rows } = await query(sql, params);
+    return { points: rows };
+  } catch (err) {
+    fastify.log.error(err);
+    return reply.code(500).send({ error: 'Path fetch failed' });
+  }
+});
+
 
 }
