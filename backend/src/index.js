@@ -21,7 +21,7 @@ const fastify = Fastify({ logger: true });
 
 // Plugins
 fastify.register(cors, { 
-  origin: true, // Allow all for dev, or specify ['http://localhost:5500']
+  origin: [true,'https://aegis-frontend.vercel.app'], // Allow all for dev, or specify ['http://localhost:5500']
   credentials: true // <--- 2. IMPORTANT: Allow cookies to be sent
 });
 
