@@ -17,10 +17,11 @@ if (!accessKeyId || !secretAccessKey || !bucketName) {
 }
 
 export const s3Client = new S3Client({
-  region: region,
+  region,
+  endpoint: `https://s3.${region}.amazonaws.com`,
   credentials: {
-    accessKeyId: accessKeyId,
-    secretAccessKey: secretAccessKey
+    accessKeyId,
+    secretAccessKey
   }
 });
 
@@ -44,7 +45,8 @@ export async function uploadChunkWithHash(key, inputStream) {
       });
       await upload.done();
       const finalHash = hash.digest('hex');
-      const publicUrl = `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
+      const publicUrl = `https://s3.${region}.amazonaws.com/${bucketName}/${key}`;
+
       resolve({ hash: finalHash, url: publicUrl });
     } catch (err) {
       reject(err);
