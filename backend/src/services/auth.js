@@ -8,7 +8,7 @@ export default async function authRoutes(fastify, options) {
     reply.setCookie('token', token, {
       path: '/',
       httpOnly: true,  // Security: JS cannot read this cookie
-      secure: false,   // Set to TRUE in production (HTTPS only)
+      secure: true,   // Set to TRUE in production (HTTPS only)
       sameSite: 'lax', // CSRF protection
       maxAge: 60 * 60 * 24 * 7 // 1 Week
     });
