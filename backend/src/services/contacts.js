@@ -114,7 +114,7 @@ export default async function contactRoutes(fastify, options) {
       const { rows } = await query('SELECT * FROM contacts WHERE user_id = $1 ORDER BY name ASC', [userId]);
       return { contacts: rows };
     } catch (err) {
-      return reply.code(500).send({ error: 'Database error' });
+      return reply.code(500).send({ error: `Database error ${err.message}` });
     }
   });
 
