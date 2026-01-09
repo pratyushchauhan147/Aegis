@@ -24,7 +24,7 @@ export default async function contactRoutes(fastify, options) {
       return { results: rows };
     } catch (err) {
       fastify.log.error(err);
-      return reply.code(500).send({ error: 'Search failed' });
+     return reply.code(500).send({ error: `${err.message}` });
     }
   });
   
@@ -101,7 +101,7 @@ export default async function contactRoutes(fastify, options) {
 
     } catch (err) {
       fastify.log.error(err);
-      return reply.code(500).send({ error: 'Failed to add contact' });
+     return reply.code(500).send({ error: `${err.message}` });
     }
   });
 
@@ -114,7 +114,7 @@ export default async function contactRoutes(fastify, options) {
       const { rows } = await query('SELECT * FROM contacts WHERE user_id = $1 ORDER BY name ASC', [userId]);
       return { contacts: rows };
     } catch (err) {
-      
+
       return reply.code(500).send({ error: `Database error ${err.message}` });
     }
   });

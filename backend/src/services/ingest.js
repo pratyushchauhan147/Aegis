@@ -95,7 +95,7 @@ export default async function ingestRoutes(fastify, options) {
       
       console.error("❌ Ingest Failed:", err.message);
       // Return 500 but don't crash the server process
-      return reply.code(500).send({ error: 'Ingest failed' });
+      return reply.code(500).send({ error: `'Ingest failed' ${err.message}` });
     } finally {
       // 8. Cleanup Temp Files
       if (tempInput) await fs.promises.unlink(tempInput).catch(() => {});

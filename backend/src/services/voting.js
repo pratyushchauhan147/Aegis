@@ -33,7 +33,7 @@ export default async function votingRoutes(fastify, options) {
       return { requests: rows };
     } catch (err) {
       fastify.log.error(err);
-      return reply.code(500).send({ error: 'Failed to fetch pending votes' });
+      return reply.code(500).send({ error: `${err.message}` });
     }
   });
 

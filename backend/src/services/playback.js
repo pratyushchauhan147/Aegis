@@ -48,7 +48,7 @@ export default async function playbackRoutes(fastify, options) {
 
     } catch (err) {
       fastify.log.error(err);
-      return reply.code(500).send('Playback Error');
+      return reply.code(500).send(` Error generating manifest: ${err.message}`);
     }
   });
 }

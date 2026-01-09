@@ -34,7 +34,7 @@ export default async function incidentRoutes(fastify, options) {
 
     } catch (err) {
       fastify.log.error(err);
-      return reply.code(500).send({ error: 'Database error' });
+      return reply.code(500).send({ error: `${err.message}` });
     }
   });
 
