@@ -33,7 +33,7 @@ export default function LiveTracker({ incidentId }) {
   const [loading, setLoading] = useState(true);
   const [lastFetchTime, setLastFetchTime] = useState(null);
   
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL // || 'http://localhost:3001';
   const POLL_INTERVAL = 4000; // 4 seconds
 
   // --- OPTIMIZED MERGE LOGIC ---

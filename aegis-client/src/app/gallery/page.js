@@ -13,7 +13,7 @@ export default function IncidentFeed() {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL // || 'http://localhost:3001';
 
   // 1. Fetch List
   const fetchIncidents = async () => {

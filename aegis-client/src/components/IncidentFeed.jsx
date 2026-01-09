@@ -34,7 +34,7 @@ export default function IncidentFeed() {
   const hlsRef = useRef(null);
   const abortControllerRef = useRef(null); 
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL // || 'http://localhost:3001';
 
   // ---------------------------------------------------------
   // 1. DATA FETCHING

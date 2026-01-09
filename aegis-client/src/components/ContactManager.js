@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { UserPlus, Users, Trash2, ShieldCheck, Search, Mail, Phone, Loader2 } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const API_URL = process.env.NEXT_PUBLIC_API_URL //|| 'http://localhost:3001';
 
 export default function ContactManager() {
   const [contacts, setContacts] = useState([]);
