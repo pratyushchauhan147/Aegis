@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const region = process.env.AWS_REGION || process.env.S3_REGION || 'ap-south-1';
+const region = process.env.S3_REGION || 'ap-south-1';
 const accessKeyId = process.env.AWS_ACCESS_KEY_ID || process.env.S3_ACCESS_KEY_ID;
 const secretAccessKey = process.env.AWS_SECRET_ACCESS_KEY || process.env.S3_SECRET_ACCESS_KEY;
 const bucketName = process.env.AWS_BUCKET_NAME || process.env.S3_BUCKET;
@@ -18,6 +18,7 @@ if (!accessKeyId || !secretAccessKey || !bucketName) {
 
 export const s3Client = new S3Client({
   region: region, // ap-south-1
+  forcePathStyle: false,
   credentials: {
     accessKeyId,
     secretAccessKey
