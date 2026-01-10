@@ -37,6 +37,7 @@ export async function uploadChunkWithHash(key, inputStream) {
       inputStream.pipe(pass);
       const upload = new Upload({
         client: s3Client,
+        leavePartsOnError: false,
         params: {
           Bucket: bucketName,
           Key: key,
