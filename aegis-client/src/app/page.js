@@ -57,9 +57,10 @@ export default function LandingPage() {
           >
             Launch Console <ArrowRight size={18} className="group-hover:translate-x-1 transition" />
           </Link>
+          <Link href="/about">
           <button className="px-8 py-4 bg-slate-900 border border-slate-700 hover:border-slate-500 text-slate-300 font-bold rounded-xl transition">
             How it Works
-          </button>
+          </button></Link>
         </div>
       </header>
 
